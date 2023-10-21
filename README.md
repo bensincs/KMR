@@ -1,8 +1,8 @@
-# 🚀 Kafka Multicast Relay (KMS) 🚀
+# 🚀 Kafka Multicast Relay (KMR) 🚀
 
 ## Introduction
 
-Kafka Multicast Relay, abbreviated as KMS, is a powerful tool designed to replay Kafka messages on specific multicast groups while adhering to topic-to-multicast group mappings. This innovative solution provides seamless integration between Kafka message streams and multicast communication, allowing for efficient distribution of data across networks.
+Kafka Multicast Relay, abbreviated as KMR, is a powerful tool designed to replay Kafka messages on specific multicast groups while adhering to topic-to-multicast group mappings. This innovative solution provides seamless integration between Kafka message streams and multicast communication, allowing for efficient distribution of data across networks.
 
 KMS is engineered to operate within any Docker environment, ensuring flexibility and ease of deployment for various use cases. With its intuitive configuration options and robust performance, KMS empowers developers to efficiently manage and relay Kafka messages to multicast groups, facilitating effective data dissemination.
 
