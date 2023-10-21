@@ -36,16 +36,15 @@ KMS is designed to actively listen for incoming data from multicast groups. Once
 
 ### Prerequisites
 
-Yet to come
+- Open the Dev Container
 
 ### Installation
 
-Yet to come
-
+Nothing to do here.
 
 ## Usage
 
-Yet to come
+- Run ``` cargo build ```
 
 ## Contributing 🤝
 
