@@ -1,4 +1,4 @@
-# Kafka Multicast Relay (KMS)
+# 🚀 Kafka Multicast Relay (KMS) 🚀
 
 ## Introduction
 
@@ -17,19 +17,19 @@ KMS is engineered to operate within any Docker environment, ensuring flexibility
 - [Acknowledgments](#acknowledgments)
 - [Contact](#contact)
 
-## Goals
+## Goals 🎯
 
 - Relay Kafka messages to multicast groups.
 - Support configuration-driven multicast group mapping.
 - Multicast Capture and Republish to Kafka.
 
-### Goal 1: Relay Kafka messages to multicast groups
+### Goal 1: Relay Kafka messages to multicast groups 📤
 The primary objective of KMS is to efficiently forward Kafka messages to specific multicast groups. This ensures that data originating from Kafka topics is reliably and promptly distributed across designated network segments.
 
-### Goal 2: Support configuration-driven multicast group mapping
+### Goal 2: Support configuration-driven multicast group mapping ⚙️
 KMS offers a flexible configuration system that allows users to define mappings between Kafka topics and corresponding multicast groups. This enables fine-grained control over message routing, ensuring that data reaches the intended recipients accurately.
 
-### Goal 3: Multicast Capture and Republish to Kafka
+### Goal 3: Multicast Capture and Republish to Kafka 🔄
 KMS is designed to actively listen for incoming data from multicast groups. Once captured, this data is efficiently re-published into the Kafka ecosystem, establishing a seamless bidirectional communication channel between Kafka and multicast networks.
 
 ## Getting Started
@@ -47,22 +47,21 @@ Yet to come
 
 Yet to come
 
-## Contributing
+## Contributing 🤝
 
 We welcome contributions from the community! If you'd like to contribute to KMS, please follow these guidelines:
 
 - [Contributing Guidelines](CONTRIBUTING.md)
 
-## License
+## License 📝
 
 Kafka Multicast Relay (KMS) is licensed under the [Apache License 2.0](LICENSE).
 
-## Acknowledgments
-
-[Mention any resources, libraries, or tools you used or were inspired by while creating this project.]
-
-## Contact
+## Contact 📬
 
 For any questions, feedback, or inquiries, please reach out to us at:
 
-- Email: [ben@sincs.co.uk](mailto:ben@sincs.co.uk)
+- Email: [your.email@example.com](mailto:your.email@example.com)
+- Twitter: [@YourTwitterHandle](https://twitter.com/YourTwitterHandle)
+
+🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀
