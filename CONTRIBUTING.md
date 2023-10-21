@@ -9,15 +9,11 @@ Contributing to a repository through forking and merging is a fundamental aspect
 1. Navigate to the repository you want to contribute to.
 2. Click the "Fork" button at the top-right corner of the page. This creates a copy of the repository in your own GitHub account.
 
-![Fork](https://emojicombos.com/emoji/unicode-13.1/1f3d4-200d-1f4bb.png)
-
 ## Step 2: Clone Your Forked Repository
 
 1. Go to your forked repository.
 2. Click on the "Code" button and copy the URL.
 3. Open your terminal and run `git clone [paste the URL here]`. This downloads the repository to your local machine.
-
-![Clone](https://emojicombos.com/emoji/unicode-13.1/1f4be.png)
 
 ## Step 3: Create a New Branch
 
@@ -43,7 +39,6 @@ Contributing to a repository through forking and merging is a fundamental aspect
 2. Click on the "New pull request" button.
 3. Set the base repository to the original repository and the base branch to the branch you want to merge into.
 4. Provide a clear title and description for your pull request, detailing the changes you made.
-
 
 ## Step 8: Review and Merge
 
