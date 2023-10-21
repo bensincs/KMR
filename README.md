@@ -2,25 +2,9 @@
 
 ## Introduction
 
-[Include a concise description or tagline for your project]
+Kafka Multicast Relay, abbreviated as KMS, is a powerful tool designed to replay Kafka messages on specific multicast groups while adhering to topic-to-multicast group mappings. This innovative solution provides seamless integration between Kafka message streams and multicast communication, allowing for efficient distribution of data across networks.
 
-## Goals
-
-- [Goal 1]
-- [Goal 2]
-- [Goal 3]
-
-### Goal 1: [Goal 1 Description]
-
-[Explanation of Goal 1]
-
-### Goal 2: [Goal 2 Description]
-
-[Explanation of Goal 2]
-
-### Goal 3: [Goal 3 Description]
-
-[Explanation of Goal 3]
+KMS is engineered to operate within any Docker environment, ensuring flexibility and ease of deployment for various use cases. With its intuitive configuration options and robust performance, KMS empowers developers to efficiently manage and relay Kafka messages to multicast groups, facilitating effective data dissemination.
 
 ## Table of Contents
 - [Goals](#goals)
@@ -33,29 +17,45 @@
 - [Acknowledgments](#acknowledgments)
 - [Contact](#contact)
 
+## Goals
+
+- Relay Kafka messages to multicast groups.
+- Support configuration-driven multicast group mapping.
+- Multicast Capture and Republish to Kafka.
+
+### Goal 1: Relay Kafka messages to multicast groups
+The primary objective of KMS is to efficiently forward Kafka messages to specific multicast groups. This ensures that data originating from Kafka topics is reliably and promptly distributed across designated network segments.
+
+### Goal 2: Support configuration-driven multicast group mapping
+KMS offers a flexible configuration system that allows users to define mappings between Kafka topics and corresponding multicast groups. This enables fine-grained control over message routing, ensuring that data reaches the intended recipients accurately.
+
+### Goal 3: Multicast Capture and Republish to Kafka
+KMS is designed to actively listen for incoming data from multicast groups. Once captured, this data is efficiently re-published into the Kafka ecosystem, establishing a seamless bidirectional communication channel between Kafka and multicast networks.
+
 ## Getting Started
 
 ### Prerequisites
 
-[List any software, libraries, or tools that need to be installed before running your project.]
+Yet to come
 
 ### Installation
 
-[Step-by-step instructions on how to install your project.]
+Yet to come
 
 
 ## Usage
 
-[Provide examples or instructions on how to use your project. Include code snippets if applicable.]
-
+Yet to come
 
 ## Contributing
 
-[Explain how others can contribute to your project. This could include guidelines for bug reporting, feature requests, code contributions, etc.]
+We welcome contributions from the community! If you'd like to contribute to KMS, please follow these guidelines:
+
+- [Contributing Guidelines](CONTRIBUTING.md)
 
 ## License
 
-[Include information about the license under which your project is distributed. For example, MIT, Apache 2.0, etc.]
+Kafka Multicast Relay (KMS) is licensed under the [Apache License 2.0](LICENSE).
 
 ## Acknowledgments
 
@@ -63,4 +63,6 @@
 
 ## Contact
 
-[Provide your contact information, such as email or social media profiles, in case others want to reach out to you.]
+For any questions, feedback, or inquiries, please reach out to us at:
+
+- Email: [ben@sincs.co.uk](mailto:ben@sincs.co.uk)
