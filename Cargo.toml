@@ -7,3 +7,9 @@ edition = "2021"
 
 [dependencies]
 socket2 = "0.4"
+rdkafka = { version = "0.25" }
+log = "0.4.8"
+tokio = { version = "1.14.0", features = ["full"] }
+
+[dependencies.simple_logger]
+features = ["colors", "threads", "timestamps", "stderr"]

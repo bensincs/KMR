@@ -1,19 +1,84 @@
+use simple_logger::SimpleLogger;
+
 use socket2::{Domain, Protocol, Socket, Type};
-use std::io::Result;
 use std::{
     mem::MaybeUninit,
     net::{Ipv4Addr, SocketAddrV4},
     thread::spawn,
 };
 
+use log::{info, warn};
+
+use rdkafka::config::{ClientConfig, RDKafkaLogLevel};
+use rdkafka::consumer::stream_consumer::StreamConsumer;
+use rdkafka::consumer::{CommitMode, Consumer};
+use rdkafka::message::Message;
+
 const MULTICAST_ADDR: Ipv4Addr = Ipv4Addr::new(224, 0, 0, 69);
 const LOCAL_ADDR: Ipv4Addr = Ipv4Addr::new(0, 0, 0, 0);
 const MULTICAST_PORT: u16 = 6969;
 
-fn main() -> Result<()> {
-    // Spawn a thread to listen for incoming messages
-    spawn(move || {
-        let socket: Socket = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP)).unwrap();
+const BROKERS: &str = "localhost:29092";
+const GROUP_ID: &str = "ben";
+const TOPICS: &[&str] = &["ben"];
+
+
+async fn consume_and_cast(brokers: &str, group_id: &str, topics: &[&str]) {
+
+    let consumer: StreamConsumer = ClientConfig::new()
+        .set("group.id", group_id)
+        .set("bootstrap.servers", brokers)
+        .set("enable.partition.eof", "false")
+        .set("session.timeout.ms", "6000")
+        .set("enable.auto.commit", "true")
+        //.set("statistics.interval.ms", "30000")
+        //.set("auto.offset.reset", "smallest")
+        .set_log_level(RDKafkaLogLevel::Debug)
+        .create()
+        .expect("Consumer creation failed");
+
+    consumer
+        .subscribe(&topics.to_vec())
+        .expect("Can't subscribe to specified topics");
+
+    let socket: Socket = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP)).unwrap();
+    let addr = SocketAddrV4::new(MULTICAST_ADDR, MULTICAST_PORT);
+
+    loop {
+        match consumer.recv().await {
+            Err(e) => {
+                warn!("Kafka error: {}", e);
+            }
+            Ok(m) => {
+                let payload = match m.payload_view::<str>() {
+                    None => "",
+                    Some(Ok(s)) => s,
+                    Some(Err(e)) => {
+                        warn!("Error while deserializing message payload: {:?}", e);
+                        ""
+                    }
+                };
+
+                info!("key: '{:?}', payload: '{}', topic: {}, partition: {}, offset: {}, timestamp: {:?}",
+                      m.key(), payload, m.topic(), m.partition(), m.offset(), m.timestamp());
+
+
+
+                 let buf = format!("{}", payload).into_bytes();
+
+                 socket.send_to(&buf, &addr.into()).unwrap();
+
+                 std::thread::sleep(std::time::Duration::from_secs(1));
+
+                consumer.commit_message(&m, CommitMode::Async).unwrap();
+            }
+        };
+    }
+}
+
+async fn receive_and_produce () {
+    info!("Starting multicast listener");
+    let socket: Socket = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP)).unwrap();
         socket.set_reuse_address(true).unwrap();
         socket.set_multicast_loop_v4(true).unwrap();
         socket.set_multicast_ttl_v4(1).unwrap();
@@ -21,51 +86,42 @@ fn main() -> Result<()> {
         let addr = SocketAddrV4::new(LOCAL_ADDR, MULTICAST_PORT);
         socket.bind(&addr.into()).unwrap();
 
-        socket.join_multicast_v4(&MULTICAST_ADDR, &Ipv4Addr::UNSPECIFIED).unwrap();
+        socket
+            .join_multicast_v4(&MULTICAST_ADDR, &Ipv4Addr::UNSPECIFIED)
+            .unwrap();
 
-        let mut buf = [MaybeUninit::<u8>::uninit(); 10];
-
-        loop {
-            let (_, addr) = socket.recv_from(&mut buf).unwrap();
-
-            let msg = unsafe { std::mem::transmute::<[MaybeUninit<u8>; 10], [u8; 10]>(buf) };
-
-            let msg = String::from_utf8_lossy(&msg);
-
-            let address = addr.as_socket().unwrap();
-
-            println!("Received {} from {}", msg, address);
-        }
-    });
-
-    // Spawn a thread to send a timestamp message every second
-    spawn(move || {
-
-        let socket: Socket = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP)).unwrap();
+        let mut buf = [MaybeUninit::uninit(); 1024];
 
         loop {
+            let (_, _) = socket.recv_from(&mut buf).unwrap();
 
-            let timestamp = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs();
+            let buf = unsafe { std::mem::transmute::<_, [u8; 1024]>(buf) };
 
+            let payload = std::str::from_utf8(&buf).unwrap();
 
-            let addr = SocketAddrV4::new(MULTICAST_ADDR, MULTICAST_PORT);
-
-            let buf = format!("{}", timestamp).into_bytes();
-
-            socket.send_to(&buf, &addr.into()).unwrap();
-
-            std::thread::sleep(std::time::Duration::from_secs(1));
+            println!("Received: {}", payload);
         }
-    });
+}
 
-    println!("Press enter to exit...");
 
-    let mut input = String::new();
+#[tokio::main]
+async fn main() {
+    SimpleLogger::new().init().unwrap();
 
-    std::io::stdin().read_line(&mut input)?;
+    let mut threads = vec![];
+    // Spawn a thread to listen for incoming messages
+    let thread1 = tokio::spawn(receive_and_produce());
 
-    Ok(())
+    threads.push(thread1);
+
+    // Spawn a thread to consume messages from Kafka
+    let thread2 = tokio::spawn(consume_and_cast(BROKERS, GROUP_ID, TOPICS));
+
+    threads.push(thread2);
+
+
+    // Wait for the threads to finish
+    for thread in threads {
+        thread.await.unwrap();
+    }
 }
