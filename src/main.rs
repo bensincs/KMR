@@ -68,7 +68,7 @@ async fn consume_and_cast(brokers: &str, group_id: &str, topics: &[&str]) {
 
                  socket.send_to(&buf, &addr.into()).unwrap();
 
-                 std::thread::sleep(std::time::Duration::from_secs(1));
+
 
                 consumer.commit_message(&m, CommitMode::Async).unwrap();
             }
