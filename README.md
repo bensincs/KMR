@@ -44,7 +44,8 @@ Nothing to do here.
 
 ## Usage
 
-- Run ``` cargo build ```
+- ``` docker compose up```
+- ``` cargo build ```
 
 ## Contributing 🤝
 
