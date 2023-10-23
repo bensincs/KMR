@@ -1,4 +1,4 @@
 PRODUCER keyed-message
-topic: ben
+topic: test
 key: mykeyq
-my name is ben
+Oh wow
