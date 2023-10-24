@@ -42,10 +42,10 @@ KMS is designed to actively listen for incoming data from multicast groups. Once
 
 Nothing to do here.
 
-## Usage
+## Usage With Docker Compose 🐳
 
-- ``` docker compose up```
-- ``` cargo build ```
+-  Just run ``` docker compose up``` to stand up everything.
+-  You can also run ```docker compose up -d``` to run in detached mode.
 
 ## Contributing 🤝
 
