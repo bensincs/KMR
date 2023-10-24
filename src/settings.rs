@@ -39,7 +39,7 @@ impl Settings {
     pub fn new() -> Result<Self, ConfigError> {
         let run_mode = env::var("RUN_MODE").unwrap_or_else(|_| "development".into());
 
-        let mut s = Config::builder()
+        let s = Config::builder()
             // Start off by merging in the "default" configuration file
             .add_source(File::with_name("config/default"))
             // Add in the current environment file

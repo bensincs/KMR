@@ -21,7 +21,7 @@ async fn main() {
     let mut all_handles = vec![];
     let neighbors: Arc<Mutex<HashMap<String, u128>>> = Arc::new(Mutex::new(HashMap::new()));
 
-    if (SETTINGS.heartbeat.enabled) {
+    if SETTINGS.heartbeat.enabled {
         let mut heartbeat_handles = vec![
             tokio::spawn(heartbeat::cast()),
             tokio::spawn(heartbeat::listen()),

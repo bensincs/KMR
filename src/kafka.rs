@@ -1,11 +1,10 @@
 use crate::SETTINGS;
 use lazy_static::lazy_static;
 use log::{info, warn};
-use rdkafka::message::{Headers, Message};
 use rdkafka::{
     config::{ClientConfig, RDKafkaLogLevel},
     consumer::{stream_consumer::StreamConsumer, CommitMode, Consumer},
-    message::{BorrowedHeaders, Header, OwnedHeaders},
+    message::{Header, Headers, Message, OwnedHeaders},
     producer::{FutureProducer, FutureRecord},
 };
 use serde::{Deserialize, Serialize};
@@ -44,7 +43,7 @@ struct MessageWrapper {
 pub fn start_tasks() -> Vec<JoinHandle<()>> {
     let mut multicast_addresses: Vec<Ipv4Addr> = vec![];
 
-    for (topic, addr) in RULES.iter() {
+    for (_, addr) in RULES.iter() {
         multicast_addresses.push(addr.clone());
     }
 
