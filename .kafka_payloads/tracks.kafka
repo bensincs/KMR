@@ -1,0 +1,7 @@
+PRODUCER keyed-message-asdas
+topic: tracks
+key: some_ship
+"lat: 40.7128 long: 74.0060"
+
+###
+

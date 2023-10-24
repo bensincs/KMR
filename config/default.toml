@@ -1,0 +1,22 @@
+[kafka]
+enabled = true
+brokers = "localhost:9092"
+multicast_port = 6971
+group_id = "kafka-heartbeat"
+origin_id = "0000"
+
+[[kafka.rules]]
+topic = "tracks"
+multicast_addr = "224.0.0.70"
+
+[[kafka.rules]]
+topic = "chat"
+multicast_addr = "224.0.0.71"
+
+
+[heartbeat]
+enabled = false
+multicast_addr = "224.0.0.69"
+multicast_port = 6969
+response_port = 6970
+

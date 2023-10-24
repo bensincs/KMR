@@ -10,47 +10,52 @@ use socket2::{Domain, Protocol, Socket, Type};
 
 use tokio::task::JoinHandle;
 
-use rdkafka::consumer::{CommitMode, Consumer};
-use rdkafka::message::Message;
+use rdkafka::{consumer::{CommitMode, Consumer}, message::BorrowedHeaders};
+use rdkafka::message::{Headers, Message};
 use rdkafka::{
     config::{ClientConfig, RDKafkaLogLevel},
-    message::ToBytes,
+    message::{Header, OwnedHeaders},
 };
 use rdkafka::{
     consumer::stream_consumer::StreamConsumer,
     producer::{FutureProducer, FutureRecord},
 };
 
+use lazy_static::lazy_static;
+
+use crate::SETTINGS;
+
 use log::{info, warn};
 
-const MULTICAST_PORT: u16 = 6971;
-const LOCAL_ADDR: Ipv4Addr = Ipv4Addr::new(0, 0, 0, 0);
-const BROKERS: &str = "localhost:29092";
-const GROUP_ID: &str = "ben";
-const ORIGIN_ID: &str = "ben";
+lazy_static! {
+    static ref MULTICAST_PORT: u16 = SETTINGS.kafka.multicast_port;
+    static ref LOCAL_ADDR: Ipv4Addr = Ipv4Addr::new(0, 0, 0, 0);
+    static ref BROKERS: String = SETTINGS.kafka.brokers.clone();
+    static ref GROUP_ID: String = SETTINGS.kafka.group_id.clone();
+    static ref ORIGIN_ID: String = SETTINGS.kafka.origin_id.clone();
+    static ref ORIGIN_HEADER_NAME: String = "kmr_origin".to_string();
+    static ref RULES: HashMap<String, Ipv4Addr> = SETTINGS.kafka.rules.iter().map(|r| (r.topic.clone(), r.multicast_addr.clone())).collect::<HashMap<String, Ipv4Addr>>();
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 struct MessageWrapper {
     pub payload: String,
-    pub key: Vec<u8>,
+    pub key: Option<Vec<u8>>,
     pub topic: String,
     pub origin: String,
 }
 
 pub fn start_tasks() -> Vec<JoinHandle<()>> {
+    let mut multicast_addresses: Vec<Ipv4Addr> = vec![];
 
-    let mut mappings: HashMap<String, Ipv4Addr> = HashMap::new();
-    let mut reverse_mapping: HashMap<Ipv4Addr, String> = HashMap::new();
+    for (topic, addr) in RULES.iter() {
+        multicast_addresses.push(addr.clone());
+    }
 
-    mappings.insert("test".to_string(), Ipv4Addr::new(224, 0, 0, 71));
-    mappings.insert("test2".to_string(), Ipv4Addr::new(224, 0, 0, 72));
-    mappings.iter().for_each(|(k, v)| {
-        reverse_mapping.insert(*v, k.to_string());
-    });
 
     let tasks = vec![
-        tokio::spawn(consume_and_cast(mappings)),
-        tokio::spawn(receive_and_produce(reverse_mapping)),
+        tokio::spawn(consume_and_cast(RULES.clone())),
+        tokio::spawn(receive_and_produce(multicast_addresses)),
     ];
 
     return tasks;
@@ -59,9 +64,11 @@ pub fn start_tasks() -> Vec<JoinHandle<()>> {
 async fn consume_and_cast(mappings: HashMap<String, Ipv4Addr>) {
     let topics = mappings.keys().map(|s| s.as_str()).collect::<Vec<&str>>();
 
+    warn!("{:?}", BROKERS.clone());
+
     let consumer: StreamConsumer = ClientConfig::new()
-        .set("group.id", GROUP_ID)
-        .set("bootstrap.servers", BROKERS)
+        .set("group.id", GROUP_ID.clone())
+        .set("bootstrap.servers", BROKERS.clone())
         .set("enable.partition.eof", "false")
         .set("session.timeout.ms", "6000")
         .set("enable.auto.commit", "true")
@@ -81,6 +88,29 @@ async fn consume_and_cast(mappings: HashMap<String, Ipv4Addr>) {
                 warn!("Kafka error: {}", e);
             }
             Ok(m) => {
+                let headers = m.headers();
+
+                let default_headers = OwnedHeaders::new();
+                let headers = match headers {
+                    None => {
+                        warn!("No headers found");
+                        default_headers.as_borrowed()
+                    }
+                    Some(headers) => headers,
+                };
+
+                let mut forward = true;
+                for header in headers.iter() {
+                    if header.key == ORIGIN_HEADER_NAME.as_str() {
+                        forward = false;
+                    }
+                }
+
+                if !forward {
+                    info!("Message already forwarded");
+                    continue;
+                }
+
                 let payload = match m.payload_view::<str>() {
                     None => "",
                     Some(Ok(s)) => s,
@@ -91,11 +121,20 @@ async fn consume_and_cast(mappings: HashMap<String, Ipv4Addr>) {
                 };
 
                 let multicast_addr = mappings.get(m.topic()).unwrap();
-                let sock_addr = SocketAddrV4::new(*multicast_addr, MULTICAST_PORT);
+                let sock_addr = SocketAddrV4::new(*multicast_addr, *MULTICAST_PORT);
+
+                let key = match m.key_view::<[u8]>() {
+                    None => None,
+                    Some(Ok(k)) => Some(k.to_vec()),
+                    Some(Err(e)) => {
+                        warn!("Error while deserializing message key: {:?}", e);
+                        None
+                    }
+                };
 
                 let message = MessageWrapper {
                     payload: payload.to_string(),
-                    key: m.key().unwrap().to_vec(),
+                    key: key,
                     topic: m.topic().to_string(),
                     origin: ORIGIN_ID.to_string(),
                 };
@@ -112,11 +151,10 @@ async fn consume_and_cast(mappings: HashMap<String, Ipv4Addr>) {
     }
 }
 
-async fn receive_and_produce(mappings: HashMap<Ipv4Addr, String>) {
-    let multicast_addresses = mappings.keys().collect::<Vec<&Ipv4Addr>>();
+async fn receive_and_produce(multicast_addresses: Vec<Ipv4Addr>) {
 
     let producer: &FutureProducer = &ClientConfig::new()
-        .set("bootstrap.servers", BROKERS)
+        .set("bootstrap.servers", BROKERS.clone())
         .set("message.timeout.ms", "5000")
         .create()
         .expect("Producer creation error");
@@ -132,7 +170,7 @@ async fn receive_and_produce(mappings: HashMap<Ipv4Addr, String>) {
             .unwrap();
     });
 
-    let addr = SocketAddrV4::new(LOCAL_ADDR, MULTICAST_PORT);
+    let addr = SocketAddrV4::new(*LOCAL_ADDR, *MULTICAST_PORT);
     socket.bind(&addr.into()).unwrap();
 
     let mut buf = [MaybeUninit::uninit(); 1024];
@@ -146,20 +184,33 @@ async fn receive_and_produce(mappings: HashMap<Ipv4Addr, String>) {
 
         info!("Received message: {:?}", message);
 
-        if message.origin != ORIGIN_ID {
+        if message.origin != *ORIGIN_ID {
             let payload = message.payload.as_bytes();
-            let key = message.key;
+            let key = match message.key {
+                None => Vec::new(),
+                Some(k) => k,
+            };
             let topic = message.topic;
 
-            let delivery_status = producer
+            let header = Header {
+                key: ORIGIN_HEADER_NAME.as_str(),
+                value: Some(&message.origin)
+            };
+
+            let headers = OwnedHeaders::new().insert(header);
+
+            let record = FutureRecord::to(topic.as_str())
+                .payload(payload)
+                .key(key.as_slice())
+                .headers(headers);
+
+            let _ = producer
                 .send(
-                    FutureRecord::to(topic.as_str())
-                        .payload(payload)
-                        .key(key.as_slice())
-                        .headers(rdkafka::message::OwnedHeaders::new()),
+                    record,
                     Duration::from_secs(0),
                 )
                 .await;
         }
+        info!("Message produced");
     }
 }

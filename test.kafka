@@ -1,4 +1,0 @@
-PRODUCER keyed-message
-topic: test
-key: mykeyq
-Oh wow
