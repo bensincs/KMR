@@ -1,31 +1,22 @@
+use crate::SETTINGS;
+use lazy_static::lazy_static;
+use log::{info, warn};
+use rdkafka::message::{Headers, Message};
+use rdkafka::{
+    config::{ClientConfig, RDKafkaLogLevel},
+    consumer::{stream_consumer::StreamConsumer, CommitMode, Consumer},
+    message::{BorrowedHeaders, Header, OwnedHeaders},
+    producer::{FutureProducer, FutureRecord},
+};
+use serde::{Deserialize, Serialize};
+use socket2::{Domain, Protocol, Socket, Type};
 use std::{
     collections::HashMap,
     mem::MaybeUninit,
     net::{Ipv4Addr, SocketAddrV4},
     time::Duration,
 };
-
-use serde::{Deserialize, Serialize};
-use socket2::{Domain, Protocol, Socket, Type};
-
 use tokio::task::JoinHandle;
-
-use rdkafka::{consumer::{CommitMode, Consumer}, message::BorrowedHeaders};
-use rdkafka::message::{Headers, Message};
-use rdkafka::{
-    config::{ClientConfig, RDKafkaLogLevel},
-    message::{Header, OwnedHeaders},
-};
-use rdkafka::{
-    consumer::stream_consumer::StreamConsumer,
-    producer::{FutureProducer, FutureRecord},
-};
-
-use lazy_static::lazy_static;
-
-use crate::SETTINGS;
-
-use log::{info, warn};
 
 lazy_static! {
     static ref MULTICAST_PORT: u16 = SETTINGS.kafka.multicast_port;
@@ -34,7 +25,12 @@ lazy_static! {
     static ref GROUP_ID: String = SETTINGS.kafka.group_id.clone();
     static ref ORIGIN_ID: String = SETTINGS.kafka.origin_id.clone();
     static ref ORIGIN_HEADER_NAME: String = "kmr_origin".to_string();
-    static ref RULES: HashMap<String, Ipv4Addr> = SETTINGS.kafka.rules.iter().map(|r| (r.topic.clone(), r.multicast_addr.clone())).collect::<HashMap<String, Ipv4Addr>>();
+    static ref RULES: HashMap<String, Ipv4Addr> = SETTINGS
+        .kafka
+        .rules
+        .iter()
+        .map(|r| (r.topic.clone(), r.multicast_addr.clone()))
+        .collect::<HashMap<String, Ipv4Addr>>();
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -51,7 +47,6 @@ pub fn start_tasks() -> Vec<JoinHandle<()>> {
     for (topic, addr) in RULES.iter() {
         multicast_addresses.push(addr.clone());
     }
-
 
     let tasks = vec![
         tokio::spawn(consume_and_cast(RULES.clone())),
@@ -152,7 +147,6 @@ async fn consume_and_cast(mappings: HashMap<String, Ipv4Addr>) {
 }
 
 async fn receive_and_produce(multicast_addresses: Vec<Ipv4Addr>) {
-
     let producer: &FutureProducer = &ClientConfig::new()
         .set("bootstrap.servers", BROKERS.clone())
         .set("message.timeout.ms", "5000")
@@ -194,7 +188,7 @@ async fn receive_and_produce(multicast_addresses: Vec<Ipv4Addr>) {
 
             let header = Header {
                 key: ORIGIN_HEADER_NAME.as_str(),
-                value: Some(&message.origin)
+                value: Some(&message.origin),
             };
 
             let headers = OwnedHeaders::new().insert(header);
@@ -204,12 +198,7 @@ async fn receive_and_produce(multicast_addresses: Vec<Ipv4Addr>) {
                 .key(key.as_slice())
                 .headers(headers);
 
-            let _ = producer
-                .send(
-                    record,
-                    Duration::from_secs(0),
-                )
-                .await;
+            let _ = producer.send(record, Duration::from_secs(0)).await;
         }
         info!("Message produced");
     }

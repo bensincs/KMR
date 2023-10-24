@@ -1,16 +1,13 @@
 mod heartbeat;
 mod kafka;
 mod settings;
-
-use std::{collections::HashMap, sync::{Arc, Mutex}};
-
-use simple_logger::SimpleLogger;
-
-use settings::{Kafka, Settings};
-
-use log::{info, warn};
-
 use lazy_static::lazy_static;
+use settings::Settings;
+use simple_logger::SimpleLogger;
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 lazy_static! {
     pub static ref SETTINGS: Settings = Settings::new().unwrap();
@@ -24,7 +21,7 @@ async fn main() {
     let mut all_handles = vec![];
     let neighbors: Arc<Mutex<HashMap<String, u128>>> = Arc::new(Mutex::new(HashMap::new()));
 
-    if(SETTINGS.heartbeat.enabled) {
+    if (SETTINGS.heartbeat.enabled) {
         let mut heartbeat_handles = vec![
             tokio::spawn(heartbeat::cast()),
             tokio::spawn(heartbeat::listen()),
@@ -42,9 +39,7 @@ async fn main() {
     for handle in all_handles {
         handle.await.unwrap();
     }
-
 }
-
 
 async fn neighbor_printer(neighbors: Arc<Mutex<HashMap<String, u128>>>) {
     loop {
