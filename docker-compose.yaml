@@ -7,6 +7,7 @@ networks:
         - subnet: 1.0.0.0/16
 
 services:
+  # KMR 1
   kmr1:
     image: kmr
     build:
@@ -15,6 +16,7 @@ services:
     environment:
       -  KMR__KAFKA__BROKERS=kafka1:9092
       -  KMR__KAFKA__ORIGIN_ID="0001"
+      -  RUST_LOG=info
     cap_add:
     - NET_ADMIN
     networks:
@@ -48,7 +50,7 @@ services:
       local-network:
         ipv4_address: 1.0.4.1
 
-
+  # KMR 2
   kmr2:
     image: kmr
     build:
@@ -57,6 +59,7 @@ services:
     environment:
       -  KMR__KAFKA__BROKERS=kafka2:9092
       -  KMR__KAFKA__ORIGIN_ID="0002"
+      -  RUST_LOG=info
     cap_add:
     - NET_ADMIN
     networks:
@@ -89,6 +92,49 @@ services:
     networks:
       local-network:
         ipv4_address: 1.0.4.2
+
+  # KMR 3
+  kmr3:
+    image: kmr
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      -  KMR__KAFKA__BROKERS=kafka3:9092
+      -  KMR__KAFKA__ORIGIN_ID="0003"
+      -  RUST_LOG=info
+    cap_add:
+    - NET_ADMIN
+    networks:
+      - local-network
+    depends_on:
+      - kafka3
+
+  kafka3:
+    image: docker.io/bitnami/kafka:3.5
+    hostname: kafka3
+    ports:
+      - "29093:29093"
+    volumes:
+      - "kafka_data:/kafka3"
+    environment:
+      - KAFKA_ENABLE_KRAFT=yes
+      - KAFKA_CFG_PROCESS_ROLES=broker,controller
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://0.0.0.0:29093
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://:9092,EXTERNAL://localhost:29093
+      - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_BROKER_ID=1
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@127.0.0.1:9099
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      - KAFKA_CFG_NODE_ID=1
+      - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
+      - BITNAMI_DEBUG=yes
+      - KAFKA_CFG_NUM_PARTITIONS=1
+    networks:
+      local-network:
+        ipv4_address: 1.0.4.3
 
 volumes:
   kafka_data:

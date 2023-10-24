@@ -15,8 +15,7 @@ multicast_addr = "224.0.0.71"
 
 
 [heartbeat]
-enabled = false
+enabled = true
 multicast_addr = "224.0.0.69"
 multicast_port = 6969
 response_port = 6970
-
