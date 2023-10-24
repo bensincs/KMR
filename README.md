@@ -42,10 +42,17 @@ KMS is designed to actively listen for incoming data from multicast groups. Once
 
 Nothing to do here.
 
-## Usage With Docker Compose 🐳
+## Running With Docker Compose 🐳
 
--  Just run ``` docker compose up``` to stand up everything.
--  You can also run ```docker compose up -d``` to run in detached mode.
+-  Just run ```docker compose up``` to stand 3 instances of the KRM and 3 instances of kafka.
+
+## Testing the docker compose deployment 🧪
+
+-  Start the producer using kafka cli ```docker exec -it kmr-kafka1-1 bash``` and then ```/opt/bitnami/kafka/bin/kafka-console-producer.sh --broker-list localhost:9092 --topic tracks```
+-  In a different terminal consume data from the same topic on cluster 2 ```docker exec -it kmr-kafka2-1  bash``` and then ```/opt/bitnami/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic tracks --from-beginning```
+-  In a 3rd terminal consume data from the same topic on cluster 3 ```docker exec -it kmr-kafka3-1  bash``` and then ```/opt/bitnami/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic tracks --from-beginning```
+- Back in the first terminal, send some data to the topic ```tracks``` by simply typing some data and pressing send. You will see it being consumed on the second terminal.
+- This shows that the kafka messages are being replicated across the two kafka clusters correctly.
 
 ## Contributing 🤝
 
