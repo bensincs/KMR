@@ -10,15 +10,16 @@ use rdkafka::{
 use serde::{Deserialize, Serialize};
 use socket2::{Domain, Protocol, Socket, Type};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, hash_map::DefaultHasher},
     mem::MaybeUninit,
     net::{Ipv4Addr, SocketAddrV4},
-    time::Duration,
+    time::Duration, hash::{Hash, Hasher}, sync::{Arc, Mutex},
 };
 use tokio::task::JoinHandle;
 
 lazy_static! {
     static ref MULTICAST_PORT: u16 = SETTINGS.kafka.multicast_port;
+    static ref RESPONSE_PORT: u16 = SETTINGS.kafka.response_port;
     static ref LOCAL_ADDR: Ipv4Addr = Ipv4Addr::new(0, 0, 0, 0);
     static ref BROKERS: String = SETTINGS.kafka.brokers.clone();
     static ref GROUP_ID: String = SETTINGS.kafka.group_id.clone();
@@ -32,7 +33,7 @@ lazy_static! {
         .collect::<HashMap<String, Ipv4Addr>>();
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Hash)]
 struct MessageWrapper {
     pub payload: String,
     pub key: Option<Vec<u8>>,
@@ -40,22 +41,30 @@ struct MessageWrapper {
     pub origin: String,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+struct MessageAck {
+    pub hash: u64,
+}
+
 pub fn start_tasks() -> Vec<JoinHandle<()>> {
     let mut multicast_addresses: Vec<Ipv4Addr> = vec![];
+    let read_reciepts: Arc<Mutex<HashMap<u64, Option<Vec<Ipv4Addr>>>>> = Arc::new(Mutex::new(HashMap::new()));
 
     for (_, addr) in RULES.iter() {
         multicast_addresses.push(addr.clone());
     }
 
     let tasks = vec![
-        tokio::spawn(consume_and_cast(RULES.clone())),
-        tokio::spawn(receive_and_produce(multicast_addresses)),
+        tokio::spawn(consume_and_cast(RULES.clone(), read_reciepts.clone())),
+        tokio::spawn(receive_produce_and_respond(multicast_addresses)),
+        tokio::spawn(response_listen(read_reciepts.clone())),
+        tokio::spawn(read_reciept_print(read_reciepts.clone())),
     ];
 
     return tasks;
 }
 
-async fn consume_and_cast(mappings: HashMap<String, Ipv4Addr>) {
+async fn consume_and_cast(mappings: HashMap<String, Ipv4Addr>, read_reciepts: Arc<Mutex<HashMap<u64, Option<Vec<Ipv4Addr>>>>>) {
     let topics = mappings.keys().map(|s| s.as_str()).collect::<Vec<&str>>();
 
     warn!("{:?}", BROKERS.clone());
@@ -133,6 +142,11 @@ async fn consume_and_cast(mappings: HashMap<String, Ipv4Addr>) {
                     origin: ORIGIN_ID.to_string(),
                 };
 
+                let mut default_hasher = DefaultHasher::new();
+                message.hash(&mut default_hasher);
+
+                add_read_reciept(default_hasher.finish(), None, read_reciepts.clone());
+
                 info!("Sending to: {:?}", sock_addr);
 
                 let message = bincode::serialize(&message).unwrap();
@@ -145,7 +159,7 @@ async fn consume_and_cast(mappings: HashMap<String, Ipv4Addr>) {
     }
 }
 
-async fn receive_and_produce(multicast_addresses: Vec<Ipv4Addr>) {
+async fn receive_produce_and_respond(multicast_addresses: Vec<Ipv4Addr>) {
     let producer: &FutureProducer = &ClientConfig::new()
         .set("bootstrap.servers", BROKERS.clone())
         .set("message.timeout.ms", "5000")
@@ -165,11 +179,13 @@ async fn receive_and_produce(multicast_addresses: Vec<Ipv4Addr>) {
 
     let addr = SocketAddrV4::new(*LOCAL_ADDR, *MULTICAST_PORT);
     socket.bind(&addr.into()).unwrap();
+    let response_socket: Socket =
+    Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP)).unwrap();
 
     let mut buf = [MaybeUninit::uninit(); 1024];
 
     loop {
-        let (_, _) = socket.recv_from(&mut buf).unwrap();
+        let (_, addr) = socket.recv_from(&mut buf).unwrap();
 
         let buf = unsafe { std::mem::transmute::<_, [u8; 1024]>(buf) };
 
@@ -177,13 +193,18 @@ async fn receive_and_produce(multicast_addresses: Vec<Ipv4Addr>) {
 
         info!("Received message: {:?}", message);
 
+        let mut default_hasher = DefaultHasher::new();
+        message.hash(&mut default_hasher);
+
+        let hash = default_hasher.finish();
+
         if message.origin != *ORIGIN_ID {
             let payload = message.payload.as_bytes();
             let key = match message.key {
                 None => Vec::new(),
                 Some(k) => k,
             };
-            let topic = message.topic;
+            let topic = message.topic.clone();
 
             let header = Header {
                 key: ORIGIN_HEADER_NAME.as_str(),
@@ -199,6 +220,67 @@ async fn receive_and_produce(multicast_addresses: Vec<Ipv4Addr>) {
 
             let _ = producer.send(record, Duration::from_secs(0)).await;
         }
+
+        let response_addr =
+            SocketAddrV4::new(addr.as_socket_ipv4().unwrap().ip().clone(), *RESPONSE_PORT);
+
+
+        let message_ack = MessageAck { hash: hash };
+
+        let message_ack = bincode::serialize(&message_ack).unwrap();
+
+        response_socket.send_to(&message_ack, &response_addr.into()).unwrap();
+
         info!("Message produced");
+    }
+}
+
+
+pub async fn response_listen(read_reciepts: Arc<Mutex<HashMap<u64, Option<Vec<Ipv4Addr>>>>>) {
+    let socket: Socket = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP)).unwrap();
+    let addr = SocketAddrV4::new(*LOCAL_ADDR, *RESPONSE_PORT);
+    socket.bind(&addr.into()).unwrap();
+
+    let mut buf = [MaybeUninit::uninit(); 1024];
+
+    loop {
+        let (_, addr) = socket.recv_from(&mut buf).unwrap();
+
+        let buf = unsafe { std::mem::transmute::<_, [u8; 1024]>(buf) };
+
+        let ack: MessageAck = bincode::deserialize(&buf).unwrap();
+
+        add_read_reciept(ack.hash, Some(addr.as_socket_ipv4().unwrap().ip().to_owned()), read_reciepts.clone())
+    }
+}
+
+
+// Utils
+
+fn add_read_reciept(hash: u64, addr: Option<Ipv4Addr>, read_reciepts: Arc<Mutex<HashMap<u64, Option<Vec<Ipv4Addr>>>>>) {
+    let mut read_reciepts = read_reciepts.lock().unwrap();
+    let mut reciepts = match read_reciepts.get(&hash) {
+        None => vec![],
+        Some(r) => match r {
+            None => vec![],
+            Some(r) => r.clone(),
+        },
+    };
+
+    match addr {
+        None => {}
+        Some(addr) => {
+            reciepts.push(addr);
+        }
+    }
+
+    read_reciepts.insert(hash, Some(reciepts));
+}
+
+
+async fn read_reciept_print(read_reciepts: Arc<Mutex<HashMap<u64, Option<Vec<Ipv4Addr>>>>>) {
+    loop {
+        println!("{:?}", read_reciepts.lock().unwrap());
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
     }
 }

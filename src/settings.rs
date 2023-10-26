@@ -7,6 +7,7 @@ use std::{env, net::Ipv4Addr};
 pub struct Kafka {
     pub enabled: bool,
     pub multicast_port: u16,
+    pub response_port: u16,
     pub brokers: String,
     pub group_id: String,
     pub origin_id: String,

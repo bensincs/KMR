@@ -2,6 +2,7 @@
 enabled = true
 brokers = "localhost:9092"
 multicast_port = 6971
+response_port = 6972
 group_id = "kafka-heartbeat"
 origin_id = "0000"
 
