@@ -13,6 +13,7 @@ use std::{
     collections::HashMap,
     mem::MaybeUninit,
     net::{Ipv4Addr, SocketAddrV4},
+    sync::{Arc, Mutex},
     time::Duration,
 };
 use tokio::task::JoinHandle;
@@ -24,12 +25,6 @@ lazy_static! {
     static ref GROUP_ID: String = SETTINGS.kafka.group_id.clone();
     static ref ORIGIN_ID: String = SETTINGS.kafka.origin_id.clone();
     static ref ORIGIN_HEADER_NAME: String = "kmr_origin".to_string();
-    static ref RULES: HashMap<String, Ipv4Addr> = SETTINGS
-        .kafka
-        .rules
-        .iter()
-        .map(|r| (r.topic.clone(), r.multicast_addr.clone()))
-        .collect::<HashMap<String, Ipv4Addr>>();
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -40,22 +35,7 @@ struct MessageWrapper {
     pub origin: String,
 }
 
-pub fn start_tasks() -> Vec<JoinHandle<()>> {
-    let mut multicast_addresses: Vec<Ipv4Addr> = vec![];
-
-    for (_, addr) in RULES.iter() {
-        multicast_addresses.push(addr.clone());
-    }
-
-    let tasks = vec![
-        tokio::spawn(consume_and_cast(RULES.clone())),
-        tokio::spawn(receive_and_produce(multicast_addresses)),
-    ];
-
-    return tasks;
-}
-
-async fn consume_and_cast(mappings: HashMap<String, Ipv4Addr>) {
+pub async fn consume_and_cast(mappings: HashMap<String, Ipv4Addr>, topic_hashes: Arc<Mutex<HashMap<String, String>>>) {
     let topics = mappings.keys().map(|s| s.as_str()).collect::<Vec<&str>>();
 
     warn!("{:?}", BROKERS.clone());
@@ -83,7 +63,6 @@ async fn consume_and_cast(mappings: HashMap<String, Ipv4Addr>) {
             }
             Ok(m) => {
                 let headers = m.headers();
-
                 let default_headers = OwnedHeaders::new();
                 let headers = match headers {
                     None => {
@@ -92,13 +71,22 @@ async fn consume_and_cast(mappings: HashMap<String, Ipv4Addr>) {
                     }
                     Some(headers) => headers,
                 };
-
                 let mut forward = true;
                 for header in headers.iter() {
                     if header.key == ORIGIN_HEADER_NAME.as_str() {
                         forward = false;
                     }
                 }
+
+                // // Get the last has from the map, and hash the combination the last hash and the record
+                // let mut hashes = topic_hashes.lock().unwrap();
+                // let last_hash = match hashes.get(m.topic()) {
+                //     None => "".to_string(),
+                //     Some(h) => h.clone(),
+                // };
+
+                // let new_hash = format!("{:x}", md5::compute(format!("{}{:?}", last_hash, m.payload())));
+                // hashes.insert(m.topic().to_string(), new_hash);
 
                 if !forward {
                     info!("Message already forwarded");
@@ -145,7 +133,8 @@ async fn consume_and_cast(mappings: HashMap<String, Ipv4Addr>) {
     }
 }
 
-async fn receive_and_produce(multicast_addresses: Vec<Ipv4Addr>) {
+pub async fn receive_produce_and_respond(
+    multicast_addresses: Vec<Ipv4Addr>) {
     let producer: &FutureProducer = &ClientConfig::new()
         .set("bootstrap.servers", BROKERS.clone())
         .set("message.timeout.ms", "5000")
@@ -202,3 +191,5 @@ async fn receive_and_produce(multicast_addresses: Vec<Ipv4Addr>) {
         info!("Message produced");
     }
 }
+
+
